@@ -11,7 +11,7 @@ import java.util.Date;
 public class JwtUtil {
 
     // 1) 시크릿 키 (최소 32바이트 이상)
-    private static final String SECRET_KEY = "여기에_32바이트_이상_랜덤_문자열을_넣으세요!";
+    private static final String SECRET_KEY = "TESTAACVZzxcqqaAAZQzxcqqaAAAZQKJQ";
     // 2) 토큰 만료 시간 (예: 24시간)
     private static final long EXPIRATION_MS = 1000L * 60 * 60 * 24;
 

@@ -114,7 +114,8 @@ async function onSubmit() {
     // TODO: 성공 메시지, 로그인 페이지 이동 등
     console.log('signup ok', res.data)
   } catch (e) {
-    serverError.value = e.response?.data?.message || '서버 오류가 났어요'
+    const errMsg = e.response?.data
+    serverError.value = errMsg;
   } finally {
     loading.value = false
   }

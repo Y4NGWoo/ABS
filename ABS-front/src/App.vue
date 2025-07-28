@@ -1,12 +1,14 @@
 <template>
   <v-app>
-    <v-app-bar color="primary" dark>
+    <!-- <v-app-bar color="primary" dark>
       <v-toolbar-title>내 가계부</v-toolbar-title>
       <v-spacer />
       <RouterLink to="/signup">
         <v-btn text>회원가입</v-btn>
       </RouterLink>
-    </v-app-bar>
+    </v-app-bar> -->
+    
+    <NavBar />
 
     <v-main class="pa-4">
       <router-view />
@@ -15,6 +17,7 @@
 </template>
 
 <script setup>
+import NavBar from '@/components/common/NavBar.vue'
 // Vuetify를 감싸주는 최상위 layout
 </script>
 
