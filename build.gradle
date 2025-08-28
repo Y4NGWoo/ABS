@@ -38,6 +38,33 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // === QueryDSL (Boot 3 → jakarta 사용 필수) ===
+    implementation 'com.querydsl:querydsl-jpa:5.0.0:jakarta'
+    annotationProcessor 'com.querydsl:querydsl-apt:5.0.0:jakarta'
+    // 아래 두 줄은 일부 환경에서 필요 (메타 애노테이션/영속성)
+    annotationProcessor 'jakarta.annotation:jakarta.annotation-api:2.1.1'
+    annotationProcessor 'jakarta.persistence:jakarta.persistence-api:3.1.0'
+}
+
+
+tasks.withType(JavaCompile).configureEach {
+    options.annotationProcessorPath = configurations.annotationProcessor
+}
+// Q 클래스 생성 경로
+def generated = layout.buildDirectory.dir("generated/sources/annotationProcessor/java/main")
+
+sourceSets {
+    main {
+        java {
+            srcDirs += generated.get().asFile   // IDE가 생성 경로 인식하도록
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.generatedSourceOutputDirectory.set(generated)
+    options.annotationProcessorPath = configurations.annotationProcessor
 }
 
 tasks.named('test') {

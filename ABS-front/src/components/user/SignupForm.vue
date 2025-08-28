@@ -71,6 +71,7 @@
 <script setup>
 import { reactive, ref } from 'vue'
 import api from '@/plugins/axios'
+import router from "@/router/index.js";
 
 const formRef = ref(null)
 const form = reactive({ email: '', password: '', confirm: '', nickname: '' })
@@ -112,10 +113,10 @@ async function onSubmit() {
       nickname: form.nickname
     })
     // TODO: 성공 메시지, 로그인 페이지 이동 등
-    console.log('signup ok', res.data)
+    alert("회원가입에 성공하였습니다!\n로그인 화면으로 이동합니다.")
+    await router.push(`/login`)
   } catch (e) {
-    const errMsg = e.response?.data
-    serverError.value = errMsg;
+    serverError.value = e.response?.data;
   } finally {
     loading.value = false
   }
