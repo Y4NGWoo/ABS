@@ -2,46 +2,63 @@ package com.abs.security;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-
-import java.security.Key;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Date;
+import java.util.UUID;
 
 @Component
 public class JwtUtil {
 
-    // 1) 시크릿 키 (최소 32바이트 이상)
-    private static final String SECRET_KEY = "TESTAACVZzxcqqaAAZQzxcqqaAAAZQKJQ";
-    // 2) 토큰 만료 시간 (예: 24시간)
-    private static final long EXPIRATION_MS = 1000L * 60 * 60 * 24;
+    private final byte[] key;
 
-    // 3) JJWT용 서명 키 객체
-    private final Key key = Keys.hmacShaKeyFor(SECRET_KEY.getBytes());
+    public JwtUtil(@Value("${jwt.secret}") String secret) {
+        this.key = secret.getBytes(StandardCharsets.UTF_8);
+    }
 
-    /**
-     * 주어진 subject(e.g. email or userId)로 JWT를 생성합니다.
-     */
-    public String generateToken(String subject) {
-        Date now = new Date();
+    public String generateAccessToken(Long userId, String email) {
+        Instant now = Instant.now();
         return Jwts.builder()
-                .setSubject(subject)                         // payload: sub 클레임
-                .setIssuedAt(now)                            // payload: iat 클레임
-                .setExpiration(new Date(now.getTime() + EXPIRATION_MS)) // exp 클레임
-                .signWith(key, SignatureAlgorithm.HS256)     // HS256 알고리즘, 위키키로 서명
+                .setSubject(email)
+                .claim("uid", userId)
+                .setIssuedAt(Date.from(now))
+                .setExpiration(Date.from(now.plusSeconds(60 * 15))) // 15분
+                .signWith(Keys.hmacShaKeyFor(key), SignatureAlgorithm.HS256)
                 .compact();
     }
 
-    /**
-     * 토큰을 파싱·검증하고, payload의 subject를 반환합니다.
-     * 만료되었거나 위조된 토큰인 경우 예외를 던집니다.
-     */
-    public String validateTokenAndGetSubject(String token) {
-        Jws<Claims> claims = Jwts.parserBuilder()
-                .setSigningKey(key)  // 서명 검증용 키
+    // 세션ID를 외부에서 주입(로그인 시 생성)하여 리턴도 함께 사용
+    public String generateRefreshToken(Long userId, String email, String sessionId) {
+        Instant now = Instant.now();
+        return Jwts.builder()
+                .setSubject(email)
+                .claim("uid", userId)
+                .claim("sid", sessionId)
+                .setIssuedAt(Date.from(now))
+                .setExpiration(Date.from(now.plusSeconds(60L * 60 * 24 * 14))) // 14일
+                .signWith(Keys.hmacShaKeyFor(key), SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    public Jws<Claims> parse(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(Keys.hmacShaKeyFor(key))
                 .build()
                 .parseClaimsJws(token);
-
-        // 검증에 성공했다면 subject 반환
-        return claims.getBody().getSubject();
     }
+
+    public boolean validateToken(String token) {
+        try { parse(token); return true; }
+        catch (JwtException | IllegalArgumentException e) { return false; }
+    }
+
+    public Long getUserNo(String token) { return parse(token).getBody().get("uid", Number.class).longValue(); }
+    public String getUserEmail(String token) { return parse(token).getBody().getSubject(); }
+    public String getSessionId(String token) { return parse(token).getBody().get("sid", String.class); }
+
+    // 로그인 시 사용할 세션ID 생성기
+    public String newSessionId() { return UUID.randomUUID().toString(); }
+
 }

@@ -1,58 +1,51 @@
 package com.abs.security;
 
-import com.abs.domain.User;
-import com.abs.repository.UserRepository;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
-import jakarta.servlet.*;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.*;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
+import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.List;
 
 @Component
-public class JwtFilter extends GenericFilter {
-
+@RequiredArgsConstructor
+public class JwtFilter extends OncePerRequestFilter {
     private final JwtUtil jwtUtil;
-    private final UserRepository userRepo;
-
-    public JwtFilter(JwtUtil jwtUtil, UserRepository userRepo) {
-        this.jwtUtil  = jwtUtil;
-        this.userRepo = userRepo;
-    }
 
     @Override
-    public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain)
-            throws IOException, ServletException {
-
-        String token = resolveToken((HttpServletRequest) req);
-        if (token != null) {
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
+                                    FilterChain chain) throws ServletException, IOException {
+        String header = request.getHeader("Authorization");
+        if (header != null && header.startsWith("Bearer ")) {
+            String token = header.substring(7);
             try {
-                String email = jwtUtil.validateTokenAndGetSubject(token);
-                User user = userRepo.findByUserEmail(email)
-                        .orElseThrow();
-                // 인증 객체 생성 (authorities는 필요한 경우 채워 주세요)
-                Authentication auth = new UsernamePasswordAuthenticationToken(
-                        user, null, Collections.emptyList()
-                );
-                SecurityContextHolder.getContext().setAuthentication(auth);
-            } catch (JwtException e){
-                // 토큰이 유효하지 않거나 사용자 조회 실패 시
-                SecurityContextHolder.clearContext();
+                if (jwtUtil.validateToken(token)) {
+                    String email = jwtUtil.getUserEmail(token);
+                    var auth = new UsernamePasswordAuthenticationToken(
+                            email, null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+                    auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(auth);
+                }
+            } catch (ExpiredJwtException e) {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.getWriter().write("Access token expired");
+                return;
+            } catch (JwtException e) {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.getWriter().write("Invalid token");
+                return;
             }
         }
-        chain.doFilter(req, res);
-    }
-
-    private String resolveToken(HttpServletRequest req) {
-        String header = req.getHeader("Authorization");
-        if (StringUtils.hasText(header) && header.startsWith("Bearer ")) {
-            return header.substring(7);
-        }
-        return null;
+        chain.doFilter(request, response);
     }
 }

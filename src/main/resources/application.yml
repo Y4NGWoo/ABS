@@ -5,8 +5,17 @@ spring:
   datasource:
     url: jdbc:mysql://localhost:3306/ABSDEV
     username: root       # ???? ??
-    password: 9562    # ??? ??? ??
+    password: "9562"    # ??? ??? ??
     driver-class-name: com.mysql.cj.jdbc.Driver
+    # redis setting
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: "9562"
+
+jwt:
+  secret: "q3f7Y!9zX#vB1kLp@eR6mT^8wA2sD4hG0jU5nC%7rF9tK$z"
 
   jpa:
     hibernate:

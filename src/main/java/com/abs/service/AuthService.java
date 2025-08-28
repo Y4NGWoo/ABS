@@ -3,44 +3,57 @@ package com.abs.service;
 import com.abs.domain.User;
 import com.abs.repository.UserRepository;
 import com.abs.security.JwtUtil;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
-
 @Service
+@RequiredArgsConstructor
 public class AuthService {
 
-    private final UserRepository userRepo;
-    private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
-    private final JwtUtil jwtUtil;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtUtil jwt;
+    private final RefreshTokenService refreshTokenService;
 
-    public AuthService(UserRepository userRepo, JwtUtil jwtUtil) {
-        this.userRepo = userRepo;
-        this.jwtUtil  = jwtUtil;
+    public Tokens login(String email, String password) {
+        User u = userRepository.findByUserEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("LOGIN_ERR_USER_NOT_FOUND"));
+        if (!passwordEncoder.matches(password, u.getUserPwd()))
+            throw new IllegalArgumentException("LOGIN_ERR_INVALID_PASSWORD");
+
+        String sid = jwt.newSessionId();
+        String accessToken = jwt.generateAccessToken(u.getUserNo(), u.getUserEmail());
+        String refreshToken = jwt.generateRefreshToken(u.getUserNo(), u.getUserEmail(), sid);
+
+        refreshTokenService.save(u.getUserNo(), sid, refreshToken);
+        return new Tokens(accessToken, refreshToken, sid, u.getUserNo(), u.getUserEmail());
     }
 
-    public void signup(String email, String pw, String nickname) {
-        if (userRepo.findByUserEmail(email).isPresent()) {
-            throw new RuntimeException("이미 존재하는 이메일입니다");
+    public Tokens refresh(String refreshToken, String sid) {
+        Long uid = jwt.getUserNo(refreshToken);
+        String current = refreshTokenService.get(uid, sid);
+        if (current == null || !current.equals(refreshToken)) {
+            refreshTokenService.delete(uid, sid);
+            throw new IllegalArgumentException("INVALID_REFRESH");
         }
-        String hash = encoder.encode(pw);
-        User user = User.builder()
-                .userEmail(email)
-                .userPwd(hash)
-                .userName(nickname)
-                .regDtm(LocalDateTime.now())
-                .build();
-        userRepo.save(user);
+        String email = jwt.getUserEmail(refreshToken);
+        String newAccess = jwt.generateAccessToken(uid, email);
+        String newRefresh = jwt.generateRefreshToken(uid, email, sid); // 회전
+        refreshTokenService.save(uid, sid, newRefresh);
+        return new Tokens(newAccess, newRefresh, sid, uid, email);     // ★ 동일 형태 반환
     }
 
-    public String login(String email, String pw) {
-        User u = userRepo.findByUserEmail(email)
-                .orElseThrow(() -> new RuntimeException("이메일이 없습니다"));
-        if (!encoder.matches(pw, u.getUserPwd())) {
-            throw new RuntimeException("비밀번호가 틀렸습니다");
-        }
-        // JWT subject로는 이메일 또는 userNo 둘 다 가능
-        return jwtUtil.generateToken(u.getUserEmail());
+    public void logout(Long userNo, String sid) {
+        refreshTokenService.delete(userNo, sid);
     }
+
+    // 간단 DTO
+    public record Tokens(
+            String accessToken,
+            String refreshToken,
+            String sessionId,
+            Long userNo,
+            String userEmail
+    ) {}
 }
