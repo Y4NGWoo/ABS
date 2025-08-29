@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -41,7 +42,9 @@ public class JwtFilter extends OncePerRequestFilter {
                     UserPrincipal principal = UserPrincipal.from(user);
                     Authentication auth = new UsernamePasswordAuthenticationToken(
                             principal, null, principal.getAuthorities());
-                    SecurityContextHolder.getContext().setAuthentication(auth);
+                    SecurityContext context = SecurityContextHolder.createEmptyContext();
+                    context.setAuthentication(auth);
+                    SecurityContextHolder.setContext(context);
                 }
             } catch (ExpiredJwtException e) {
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -54,6 +57,8 @@ public class JwtFilter extends OncePerRequestFilter {
             }
         }
         chain.doFilter(request, response);
+        System.out.println("AFTER_SET auth=" + SecurityContextHolder.getContext().getAuthentication());
+
     }
 
     private String resolveToken(HttpServletRequest req) {

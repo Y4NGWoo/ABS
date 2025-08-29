@@ -19,17 +19,20 @@ public class AuthController {
 
     private final AuthService authService;
 
+    //테스트용
+    private final Boolean localSecure = false;
+
     // 로그인: Access는 바디, Refresh/sid는 HttpOnly 쿠키 > 전부 쿠키로
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginReq req, HttpServletRequest httpReq) {
         var result = authService.login(req.userEmail(), req.userPwd());
 
-        boolean secure = httpReq.isSecure();
+        //boolean secure = httpReq.isSecure(); 운영시 전환
 
         return ResponseEntity.ok()
-                .header("Set-Cookie", CookieUtil.accessCookie(result.accessToken(), secure).toString())
-                .header("Set-Cookie", CookieUtil.refreshCookie(result.refreshToken(), secure).toString())
-                .body(Map.of("success", secure));
+                .header("Set-Cookie", CookieUtil.accessCookie(result.accessToken(), localSecure).toString())
+                .header("Set-Cookie", CookieUtil.refreshCookie(result.refreshToken(), localSecure).toString())
+                .body(Map.of("success", true));
     }
 
     // 재발급(회전): 쿠키의 refresh + sid 사용
@@ -37,15 +40,15 @@ public class AuthController {
     public ResponseEntity<?> refresh(@CookieValue("REFRESH_TOKEN") String refreshToken,
                                      @CookieValue("SID") String sid, HttpServletRequest httpReq) { // 세션 식별자 쿠키로 쓰면 더 안전
         var res = authService.refresh(refreshToken, sid);
-        boolean secure = httpReq.isSecure();
+        //boolean secure = httpReq.isSecure();
 
         var resp = ResponseEntity.ok()
-                .header("Set-Cookie", CookieUtil.accessCookie(res.accessToken(), secure).toString());
+                .header("Set-Cookie", CookieUtil.accessCookie(res.accessToken(), localSecure).toString());
 
         if (res.refreshToken() != null) {
-            resp = resp.header("Set-Cookie", CookieUtil.refreshCookie(res.refreshToken(), secure).toString());
+            resp = resp.header("Set-Cookie", CookieUtil.refreshCookie(res.refreshToken(), localSecure).toString());
         }
-        return resp.body(Map.of("success", secure));
+        return resp.body(Map.of("success", true));
     }
 
     // 단일 기기 로그아웃
@@ -57,12 +60,12 @@ public class AuthController {
         // 해당 세션/기기의 refresh 무효화 (Redis 삭제)
         authService.logout(principal.getUserNo(), refreshToken);
 
-        boolean secure = httpReq.isSecure();
+        //boolean secure = httpReq.isSecure();
 
         return ResponseEntity.ok()
-                .header("Set-Cookie", CookieUtil.clear("ACCESS_TOKEN", secure, "/").toString())
-                .header("Set-Cookie", CookieUtil.clear("REFRESH_TOKEN", secure, "/api/auth").toString())
-                .body(Map.of("success", secure));
+                .header("Set-Cookie", CookieUtil.clear("ACCESS_TOKEN", localSecure, "/").toString())
+                .header("Set-Cookie", CookieUtil.clear("REFRESH_TOKEN", localSecure, "/api/auth").toString())
+                .body(Map.of("success", true));
     }
 
 

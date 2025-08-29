@@ -31,7 +31,6 @@ public class UserPrincipal implements UserDetails {
         );
     }
 
-    // === 여기 3개를 명시적으로 추가 ===
     public Long getUserNo() { return userNo; }
     public String getUserEmail() { return userEmail; }
     public String getUserName() { return userName; }
@@ -42,7 +41,6 @@ public class UserPrincipal implements UserDetails {
     // 패스워드는 JWT 흐름에서는 사용 안 하지만 시그니처상 필요
     @Override public String getPassword() { return ""; }
 
-    // 로그인 아이디로 무엇을 쓸지: 보통 email 사용
     @Override public String getUsername() { return userEmail; }
 
     @Override public boolean isAccountNonExpired() { return true; }

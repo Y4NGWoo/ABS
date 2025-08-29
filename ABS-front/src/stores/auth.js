@@ -9,7 +9,7 @@ api.interceptors.response.use(
     res => res,
     async (error) => {
         const { config, response } = error
-        if (!response || response.status !== 401 || config._retry) {
+        if (!response || response.status !== 401 ||  response.status !== 403 || config._retry) {
             return Promise.reject(error)
         }
 
@@ -88,6 +88,7 @@ export const useAuthStore = defineStore("auth", {
                 console.log(data);
             } catch (e) {
                 this.user = null
+                console.log(e);
                 // whoami가 401이면 인터셉터가 알아서 리프레시 시도함
             }
         },
