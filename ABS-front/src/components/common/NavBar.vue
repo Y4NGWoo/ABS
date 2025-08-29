@@ -31,7 +31,7 @@ const router = useRouter()
 
 // 새로고침해도 user를 복원하고 싶으면
 onMounted(() => {
-  if (auth.token && !auth.user) {
+  if (!auth.user) {
     auth.fetchUser?.()
   }
 })

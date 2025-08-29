@@ -85,9 +85,9 @@ async function onSubmit() {
   if (!validate()) return
   loading.value = true
   try {
-    await auth.login({ email: form.email, password: form.password })
+    await auth.login({ userEmail: form.email, userPwd: form.password })
     alert("로그인에 성공하였습니다!");
-    router.push('/')  // 로그인 성공 후 홈으로
+    await router.push('/')  // 로그인 성공 후 홈으로
   } catch (e) {
     // err.response.data 에서 백엔드에서 보낸 메시지(문자열)를 꺼내서 띄워줌
     serverError.value = e.response?.data;

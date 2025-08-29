@@ -1,13 +1,10 @@
 package com.abs.controller;
 
 import com.abs.security.CookieUtil;
-import com.abs.security.JwtUtil;
 import com.abs.service.AuthService;
 import com.abs.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,51 +18,51 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
-    private final JwtUtil jwt;
 
     // 로그인: Access는 바디, Refresh/sid는 HttpOnly 쿠키 > 전부 쿠키로
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginReq req) {
+    public ResponseEntity<?> login(@RequestBody LoginReq req, HttpServletRequest httpReq) {
         var result = authService.login(req.userEmail(), req.userPwd());
 
-        //boolean secure = isProd(); // 운영 여부 판단 로직 (프로필/환경변수 기반) > 추후 추가
+        boolean secure = httpReq.isSecure();
 
         return ResponseEntity.ok()
-                .header("Set-Cookie", CookieUtil.accessCookie(result.accessToken(), true).toString())
-                .header("Set-Cookie", CookieUtil.refreshCookie(result.refreshToken(), true).toString())
-                .body(Map.of("success", true));
+                .header("Set-Cookie", CookieUtil.accessCookie(result.accessToken(), secure).toString())
+                .header("Set-Cookie", CookieUtil.refreshCookie(result.refreshToken(), secure).toString())
+                .body(Map.of("success", secure));
     }
 
     // 재발급(회전): 쿠키의 refresh + sid 사용
     @PostMapping("/api/auth/refresh")
     public ResponseEntity<?> refresh(@CookieValue("REFRESH_TOKEN") String refreshToken,
-                                     @CookieValue("SID") String sid) { // 세션 식별자 쿠키로 쓰면 더 안전
+                                     @CookieValue("SID") String sid, HttpServletRequest httpReq) { // 세션 식별자 쿠키로 쓰면 더 안전
         var res = authService.refresh(refreshToken, sid);
-        //boolean secure = isProd();
+        boolean secure = httpReq.isSecure();
 
         var resp = ResponseEntity.ok()
-                .header("Set-Cookie", CookieUtil.accessCookie(res.accessToken(), true).toString());
+                .header("Set-Cookie", CookieUtil.accessCookie(res.accessToken(), secure).toString());
 
         if (res.refreshToken() != null) {
-            resp = resp.header("Set-Cookie", CookieUtil.refreshCookie(res.refreshToken(), true).toString());
+            resp = resp.header("Set-Cookie", CookieUtil.refreshCookie(res.refreshToken(), secure).toString());
         }
-        return resp.body(Map.of("success", true));
+        return resp.body(Map.of("success", secure));
     }
 
     // 단일 기기 로그아웃
     @PostMapping("/api/auth/logout")
     public ResponseEntity<?> logout(
-            @AuthenticationPrincipal UserPrincipal principal,
+            @AuthenticationPrincipal UserPrincipal principal, HttpServletRequest httpReq,
             @CookieValue(name = "REFRESH_TOKEN", required = false) String refreshToken) {
 
         // 해당 세션/기기의 refresh 무효화 (Redis 삭제)
         authService.logout(principal.getUserNo(), refreshToken);
 
-        //boolean secure = isProd();
+        boolean secure = httpReq.isSecure();
+
         return ResponseEntity.ok()
-                .header("Set-Cookie", CookieUtil.clear("ACCESS_TOKEN", true, "/").toString())
-                .header("Set-Cookie", CookieUtil.clear("REFRESH_TOKEN", true, "/api/auth").toString())
-                .body(Map.of("success", true));
+                .header("Set-Cookie", CookieUtil.clear("ACCESS_TOKEN", secure, "/").toString())
+                .header("Set-Cookie", CookieUtil.clear("REFRESH_TOKEN", secure, "/api/auth").toString())
+                .body(Map.of("success", secure));
     }
 
 

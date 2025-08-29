@@ -51,11 +51,11 @@ export const useAuthStore = defineStore("auth", {
     }),
 
     actions: {
-        async signup({ email, password, nickname }) {
+        async signup({ userEmail, userPwd, userName }) {
             this.error = null
             this.loading = true
             try {
-                await api.post("/api/auth/signup", { email, password, nickname })
+                await api.post("/api/auth/signup", { userEmail, userPwd, userName })
                 return true
             } catch (e) {
                 this.error = e.response?.data || "회원가입 실패"
@@ -65,12 +65,12 @@ export const useAuthStore = defineStore("auth", {
             }
         },
 
-        async login({ email, password }) {
+        async login({ userEmail, userPwd }) {
             this.error = null
             this.loading = true
             try {
                 // 성공 시 서버가 Set-Cookie(ACCESS_TOKEN/REFRESH_TOKEN) 내려줌
-                await api.post("/api/auth/login", { email, password })
+                await api.post("/api/auth/login", { userEmail, userPwd })
                 await this.fetchUser()
                 return true
             } catch (e) {

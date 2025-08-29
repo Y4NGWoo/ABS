@@ -4,41 +4,43 @@ import com.abs.domain.User;
 import com.abs.repository.UserRepository;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
-import io.netty.util.internal.StringUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.util.WebUtils;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Objects;
 
 @Component
 @RequiredArgsConstructor
 public class JwtFilter extends OncePerRequestFilter {
+
     private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
-                                    FilterChain chain) throws ServletException, IOException {
-        String token = this.resolveToken(request);
-        if (!StringUtil.isNullOrEmpty(token)) {
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+            throws ServletException, IOException {
+
+        String token = resolveToken(request);
+
+        if (StringUtils.hasText(token)) {
             try {
                 if (jwtUtil.validateToken(token)) {
                     User user = userRepository.findByUserEmail(jwtUtil.getUserEmail(token)).orElseThrow();
                     UserPrincipal principal = UserPrincipal.from(user);
-                    Authentication auth = new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
+                    Authentication auth = new UsernamePasswordAuthenticationToken(
+                            principal, null, principal.getAuthorities());
                     SecurityContextHolder.getContext().setAuthentication(auth);
                 }
             } catch (ExpiredJwtException e) {
@@ -55,19 +57,16 @@ public class JwtFilter extends OncePerRequestFilter {
     }
 
     private String resolveToken(HttpServletRequest req) {
-        // 1) Authorization 헤더 우선 (테스트용)
-//        String header = req.getHeader("Authorization");
-//        if (header != null && header.startsWith("Bearer ")) {
-//            return header.substring(7);
-//        }
-        // 2) 쿠키에서 ACCESS_TOKEN
-        Cookie[] cookies = req.getCookies();
-        if (cookies != null) {
-            for (Cookie c : cookies) {
-                if ("ACCESS_TOKEN".equals(c.getName())) {
-                    return c.getValue();
-                }
-            }
+        // 기본적으로 쿠키에 있는 액세스토큰 사용
+        Cookie access = WebUtils.getCookie(req, "ACCESS_TOKEN");
+        if (access != null && StringUtils.hasText(access.getValue())) {
+            return access.getValue();
+        }
+
+        // Bearer 헤더도 허용 (선택)
+        String bearer = req.getHeader(HttpHeaders.AUTHORIZATION);
+        if (StringUtils.hasText(bearer) && bearer.startsWith("Bearer ")) {
+            return bearer.substring(7);
         }
         return null;
     }
