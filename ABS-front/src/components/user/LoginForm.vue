@@ -90,8 +90,7 @@ async function onSubmit() {
     router.push('/')  // 로그인 성공 후 홈으로
   } catch (e) {
     // err.response.data 에서 백엔드에서 보낸 메시지(문자열)를 꺼내서 띄워줌
-    const errMsg = e.response?.data
-    serverError.value = errMsg;
+    serverError.value = e.response?.data;
   } finally {
     loading.value = false
   }

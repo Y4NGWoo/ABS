@@ -1,14 +1,19 @@
 package com.abs.controller;
 
+import com.abs.security.CookieUtil;
 import com.abs.security.JwtUtil;
 import com.abs.service.AuthService;
+import com.abs.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
+
+import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
@@ -18,67 +23,64 @@ public class AuthController {
     private final AuthService authService;
     private final JwtUtil jwt;
 
-    // 로그인: Access는 바디, Refresh/sid는 HttpOnly 쿠키
+    // 로그인: Access는 바디, Refresh/sid는 HttpOnly 쿠키 > 전부 쿠키로
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginReq req) {
-        var t = authService.login(req.email(), req.password());
+        var result = authService.login(req.userEmail(), req.userPwd());
 
-        ResponseCookie refresh = ResponseCookie.from("refresh", t.refreshToken())
-                .httpOnly(true).secure(false) // 로컬 http 개발용. 운영은 true + HTTPS
-                .sameSite("Strict").path("/api/auth").maxAge(60L * 60 * 24 * 14).build();
-        ResponseCookie sid = ResponseCookie.from("sid", t.sessionId())
-                .httpOnly(true).secure(false)
-                .sameSite("Strict").path("/api/auth").maxAge(60L * 60 * 24 * 14).build();
+        //boolean secure = isProd(); // 운영 여부 판단 로직 (프로필/환경변수 기반) > 추후 추가
 
         return ResponseEntity.ok()
-                .header("Set-Cookie", refresh.toString())
-                .header("Set-Cookie", sid.toString())
-                .body(new TokenRes(t.accessToken()));
+                .header("Set-Cookie", CookieUtil.accessCookie(result.accessToken(), true).toString())
+                .header("Set-Cookie", CookieUtil.refreshCookie(result.refreshToken(), true).toString())
+                .body(Map.of("success", true));
     }
 
     // 재발급(회전): 쿠키의 refresh + sid 사용
-    @PostMapping("/refresh")
-    public ResponseEntity<?> refresh(@CookieValue("refresh") String refresh,
-                                     @CookieValue("sid") String sid) {
-        var t = authService.refresh(refresh, sid);
+    @PostMapping("/api/auth/refresh")
+    public ResponseEntity<?> refresh(@CookieValue("REFRESH_TOKEN") String refreshToken,
+                                     @CookieValue("SID") String sid) { // 세션 식별자 쿠키로 쓰면 더 안전
+        var res = authService.refresh(refreshToken, sid);
+        //boolean secure = isProd();
 
-        ResponseCookie newRefresh = ResponseCookie.from("refresh", t.refreshToken())
-                .httpOnly(true).secure(false).sameSite("Strict").path("/api/auth")
-                .maxAge(60L * 60 * 24 * 14).build();
-        return ResponseEntity.ok()
-                .header("Set-Cookie", newRefresh.toString())
-                .body(new TokenRes(t.accessToken()));
+        var resp = ResponseEntity.ok()
+                .header("Set-Cookie", CookieUtil.accessCookie(res.accessToken(), true).toString());
+
+        if (res.refreshToken() != null) {
+            resp = resp.header("Set-Cookie", CookieUtil.refreshCookie(res.refreshToken(), true).toString());
+        }
+        return resp.body(Map.of("success", true));
     }
 
     // 단일 기기 로그아웃
-    @PostMapping("/logout")
-    public ResponseEntity<?> logout(@CookieValue("sid") String sid,
-                                    HttpServletRequest request) {
-        String access = request.getHeader("Authorization");
-        Long userNo = (access != null && access.startsWith("Bearer "))
-                ? jwt.getUserNo(access.substring(7)) : null;
-        if (userNo != null) authService.logout(userNo, sid);
+    @PostMapping("/api/auth/logout")
+    public ResponseEntity<?> logout(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @CookieValue(name = "REFRESH_TOKEN", required = false) String refreshToken) {
 
-        // 쿠키 만료
-        ResponseCookie expire = ResponseCookie.from("refresh","").maxAge(0)
-                .httpOnly(true).secure(false).sameSite("Strict").path("/api/auth").build();
-        ResponseCookie expireSid = ResponseCookie.from("sid","").maxAge(0)
-                .httpOnly(true).secure(false).sameSite("Strict").path("/api/auth").build();
+        // 해당 세션/기기의 refresh 무효화 (Redis 삭제)
+        authService.logout(principal.getUserNo(), refreshToken);
 
+        //boolean secure = isProd();
         return ResponseEntity.ok()
-                .header("Set-Cookie", expire.toString())
-                .header("Set-Cookie", expireSid.toString())
-                .build();
+                .header("Set-Cookie", CookieUtil.clear("ACCESS_TOKEN", true, "/").toString())
+                .header("Set-Cookie", CookieUtil.clear("REFRESH_TOKEN", true, "/api/auth").toString())
+                .body(Map.of("success", true));
     }
+
 
     // 인증 확인용
-    @GetMapping("/whoami")
-    public ResponseEntity<?> whoami(Authentication auth) {
-        if (auth == null) return ResponseEntity.status(401).build();
-        return ResponseEntity.ok(new WhoAmIRes(auth.getName())); // email
+    @GetMapping("/api/auth/whoAmI")
+    public ResponseEntity<?> whoAmI(@AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null) return ResponseEntity.status(401).build();
+        return ResponseEntity.ok(new WhoAmIRes(
+                principal.getUserNo(),
+                principal.getUserEmail(),
+                principal.getUserName()
+        ));
     }
 
-    public record LoginReq(String email, String password) {}
+    public record LoginReq(String userEmail, String userPwd) {}
     public record TokenRes(String accessToken) {}
-    public record WhoAmIRes(String email) {}
+    public record WhoAmIRes(Long userNo, String userEmail, String userName) {}
 }

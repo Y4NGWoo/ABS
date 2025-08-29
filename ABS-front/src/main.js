@@ -15,11 +15,6 @@ const vuetify = createVuetify({
   },
 })
 const app = createApp(App);
-// 토큰이 localStorage에 있으면 헤더에 세팅
-const token = localStorage.getItem('token')
-if (token) {
-  api.defaults.headers.common.Authorization = `Bearer ${token}`
-}
 
 app.use(pinia);
 app.use(router);

@@ -3,6 +3,7 @@ package com.abs.service;
 import com.abs.domain.User;
 import com.abs.repository.UserRepository;
 import com.abs.security.JwtUtil;
+import com.abs.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -17,17 +18,19 @@ public class AuthService {
     private final RefreshTokenService refreshTokenService;
 
     public Tokens login(String email, String password) {
-        User u = userRepository.findByUserEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("LOGIN_ERR_USER_NOT_FOUND"));
-        if (!passwordEncoder.matches(password, u.getUserPwd()))
-            throw new IllegalArgumentException("LOGIN_ERR_INVALID_PASSWORD");
+        User user = userRepository.findByUserEmail(email)
+                .orElseThrow(() -> new RuntimeException("LOGIN_ERR_USER_NOT_FOUND"));
+        if (!passwordEncoder.matches(password, user.getUserPwd()))
+            throw new RuntimeException("LOGIN_ERR_INVALID_PASSWORD");
+
+        UserPrincipal principal = UserPrincipal.from(user);
 
         String sid = jwt.newSessionId();
-        String accessToken = jwt.generateAccessToken(u.getUserNo(), u.getUserEmail());
-        String refreshToken = jwt.generateRefreshToken(u.getUserNo(), u.getUserEmail(), sid);
+        String accessToken = jwt.generateAccessToken(principal);
+        String refreshToken = jwt.generateRefreshToken(principal, sid);
 
-        refreshTokenService.save(u.getUserNo(), sid, refreshToken);
-        return new Tokens(accessToken, refreshToken, sid, u.getUserNo(), u.getUserEmail());
+        refreshTokenService.save(user.getUserNo(), sid, refreshToken);
+        return new Tokens(accessToken, refreshToken, sid, user.getUserNo(), user.getUserEmail());
     }
 
     public Tokens refresh(String refreshToken, String sid) {
@@ -37,18 +40,23 @@ public class AuthService {
             refreshTokenService.delete(uid, sid);
             throw new IllegalArgumentException("INVALID_REFRESH");
         }
+
+        User user = userRepository.findByUserNo(uid);
+        UserPrincipal principal = UserPrincipal.from(user);
+
         String email = jwt.getUserEmail(refreshToken);
-        String newAccess = jwt.generateAccessToken(uid, email);
-        String newRefresh = jwt.generateRefreshToken(uid, email, sid); // 회전
+        String newAccess = jwt.generateAccessToken(principal);
+        String newRefresh = jwt.generateRefreshToken(principal, sid);
         refreshTokenService.save(uid, sid, newRefresh);
-        return new Tokens(newAccess, newRefresh, sid, uid, email);     // ★ 동일 형태 반환
+        return new Tokens(newAccess, newRefresh, sid, uid, email);
     }
 
     public void logout(Long userNo, String sid) {
         refreshTokenService.delete(userNo, sid);
     }
 
-    // 간단 DTO
+
+    // DTO
     public record Tokens(
             String accessToken,
             String refreshToken,

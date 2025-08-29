@@ -18,11 +18,11 @@ public class JwtUtil {
         this.key = secret.getBytes(StandardCharsets.UTF_8);
     }
 
-    public String generateAccessToken(Long userId, String email) {
+    public String generateAccessToken(UserPrincipal principal) {
         Instant now = Instant.now();
         return Jwts.builder()
-                .setSubject(email)
-                .claim("uid", userId)
+                .setSubject(principal.getUserEmail())
+                .claim("uid", principal.getUserNo())
                 .setIssuedAt(Date.from(now))
                 .setExpiration(Date.from(now.plusSeconds(60 * 15))) // 15분
                 .signWith(Keys.hmacShaKeyFor(key), SignatureAlgorithm.HS256)
@@ -30,11 +30,11 @@ public class JwtUtil {
     }
 
     // 세션ID를 외부에서 주입(로그인 시 생성)하여 리턴도 함께 사용
-    public String generateRefreshToken(Long userId, String email, String sessionId) {
+    public String generateRefreshToken(UserPrincipal principal, String sessionId) {
         Instant now = Instant.now();
         return Jwts.builder()
-                .setSubject(email)
-                .claim("uid", userId)
+                .setSubject(principal.getUserEmail())
+                .claim("uid", principal.getUserNo())
                 .claim("sid", sessionId)
                 .setIssuedAt(Date.from(now))
                 .setExpiration(Date.from(now.plusSeconds(60L * 60 * 24 * 14))) // 14일

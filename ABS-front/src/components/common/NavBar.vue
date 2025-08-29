@@ -8,16 +8,16 @@
     <v-spacer />
 
     <!-- 로그인 상태에 따라 다른 버튼 노출 -->
-    <template v-if="auth.token">
-      <v-btn text class="mr-4" disabled>
-        환영합니다, {{ auth.user?.nickname || '회원' }}님
-      </v-btn>
-      <v-btn text @click="onLogout">로그아웃</v-btn>
-    </template>
-    <template v-else>
-      <v-btn text to="/login">로그인</v-btn>
-      <v-btn text to="/signup">회원가입</v-btn>
-    </template>
+<!--    <template v-if="auth.user.userNo">-->
+<!--      <v-btn text class="mr-4" disabled>-->
+<!--        환영합니다, {{ auth.user.name || '회원' }}님-->
+<!--      </v-btn>-->
+<!--      <v-btn text @click="onLogout">로그아웃</v-btn>-->
+<!--    </template>-->
+<!--    <template v-else>-->
+<!--      <v-btn text to="/login">로그인</v-btn>-->
+<!--      <v-btn text to="/signup">회원가입</v-btn>-->
+<!--    </template>-->
   </v-app-bar>
 </template>
 
