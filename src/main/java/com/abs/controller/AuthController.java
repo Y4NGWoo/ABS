@@ -1,9 +1,11 @@
 package com.abs.controller;
 
 import com.abs.security.CookieUtil;
+import com.abs.security.JwtUtil;
 import com.abs.service.AuthService;
 import com.abs.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -21,6 +23,7 @@ public class AuthController {
 
     //테스트용
     private final Boolean localSecure = false;
+    private final JwtUtil jwtUtil;
 
     // 로그인: Access는 바디, Refresh/sid는 HttpOnly 쿠키 > 전부 쿠키로
     @PostMapping("/login")
@@ -35,18 +38,25 @@ public class AuthController {
                 .body(Map.of("success", true));
     }
 
-    // 재발급(회전): 쿠키의 refresh + sid 사용
+    // 재발급(회전)
     @PostMapping("/api/auth/refresh")
-    public ResponseEntity<?> refresh(@CookieValue("REFRESH_TOKEN") String refreshToken,
-                                     @CookieValue("SID") String sid, HttpServletRequest httpReq) { // 세션 식별자 쿠키로 쓰면 더 안전
-        var res = authService.refresh(refreshToken, sid);
-        //boolean secure = httpReq.isSecure();
+    public ResponseEntity<?> refresh(
+            @CookieValue("REFRESH_TOKEN") String refreshToken,
+            HttpServletRequest httpReq) {
 
+        // 토큰에서 sid 복구 (JwtUtil에 getSessionId 구현)
+        String sid = jwtUtil.getSessionId(refreshToken);
+
+        var res = authService.refresh(refreshToken, sid);
+
+        // boolean secure = httpReq.isSecure();
         var resp = ResponseEntity.ok()
-                .header("Set-Cookie", CookieUtil.accessCookie(res.accessToken(), localSecure).toString());
+                .header(HttpHeaders.SET_COOKIE,
+                        CookieUtil.accessCookie(res.accessToken(), localSecure).toString());
 
         if (res.refreshToken() != null) {
-            resp = resp.header("Set-Cookie", CookieUtil.refreshCookie(res.refreshToken(), localSecure).toString());
+            resp = resp.header(HttpHeaders.SET_COOKIE,
+                    CookieUtil.refreshCookie(res.refreshToken(), localSecure).toString());
         }
         return resp.body(Map.of("success", true));
     }

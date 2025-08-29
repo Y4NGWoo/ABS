@@ -9,36 +9,17 @@ api.interceptors.response.use(
     res => res,
     async (error) => {
         const { config, response } = error
-        if (!response || response.status !== 401 ||  response.status !== 403 || config._retry) {
+        if (!response || (response.status !== 401 && response.status !== 403) || config._retry) {
             return Promise.reject(error)
         }
 
         config._retry = true
 
-        const retryOriginal = () => api(config)
-
-        if (isRefreshing) {
-            return new Promise((resolve, reject) => {
-                queue.push({ resolve, reject, retryOriginal })
-            })
-        }
-
-        isRefreshing = true
         try {
-            // 쿠키 기반이라 바디 불필요
-            await api.post("/api/auth/refresh")
-            // 대기중이던 요청 재시도
-            queue.forEach(({ resolve, retryOriginal }) => resolve(retryOriginal()))
-            queue = []
-            return retryOriginal()
+            await api.post('/api/auth/refresh') // 쿠키 기반이므로 바디 불필요
+            return api(config) // 토큰 재발급 성공 → 원요청 재시도
         } catch (e) {
-            // 모두 실패 → 로그인 페이지로
-            queue.forEach(({ reject }) => reject(e))
-            queue = []
-            window.location.href = "/login"
             return Promise.reject(e)
-        } finally {
-            isRefreshing = false
         }
     }
 )

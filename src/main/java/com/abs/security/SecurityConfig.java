@@ -32,7 +32,7 @@ public class SecurityConfig {
         http.csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(req -> {
                     var c = new org.springframework.web.cors.CorsConfiguration();
-                    c.setAllowedOriginPatterns(List.of("http://localhost:*", "http://127.0.0.1:*"));
+                    c.setAllowedOriginPatterns(List.of("http://localhost:*"));
                     c.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS"));
                     c.setAllowedHeaders(List.of("*"));
                     c.setAllowCredentials(true); // 쿠키 전송 허용
